@@ -11,8 +11,10 @@
   // ---------- Versión y novedades ----------
   // Al publicar cambios: añadir una entrada AL PRINCIPIO de NOVEDADES, poner su versión en los ?v= de index.html, en
   // APP_VERSION y subir CACHE_NAME en sw.js. Formato de versión: AAAA.NN.
-  const APP_VERSION = "2026.14";
+  const APP_VERSION = "2026.15";
   const NOVEDADES = [
+    { version: "2026.15", fecha: "Octubre 2026", titulo: "Indicadores desde las acciones de un análisis de causas", cambios: [
+      "Nuevo botón «Cargar archivo de ACR · Ishikawa» en «Mi cuadro»: con la copia de seguridad (.json) de la app ACR · Ishikawa, elige una acción de mejora y se crea un indicador nuevo con su criterio, su numerador, su denominador y su estándar, para completarlo aquí."] },
     { version: "2026.13", fecha: "Octubre 2026", titulo: "Evidencia de Lectura Crítica", cambios: [
       "En el paso 1, «Cargar archivo de Lectura Crítica» escribe el criterio a partir de la pregunta PICO de un artículo leído con la app Lectura Crítica (desde su copia de seguridad .json), si aún no tienes criterio, y guarda su evidencia en «Observaciones». Avisa si la decisión fue esperar o descartar."] },
     { version: "2026.03", fecha: "Octubre 2026", titulo: "Una app para todos", cambios: [
@@ -861,6 +863,7 @@
       <div class="toolbar">
         <a class="btn btn--primary" href="#/nuevo">+ Nuevo indicador</a>
         <a class="btn" href="#/compuesto/nuevo">+ Nuevo compuesto</a>
+        ${modoEjemplo ? "" : `<button class="btn" data-act="acr-traer" title="Crea un indicador a partir de una acción de mejora de un análisis hecho con la app ACR · Ishikawa">↯ Cargar archivo de ACR · Ishikawa</button>`}
         <a class="btn" href="#/ejemplos">Ver cuadro de ejemplo</a>
         ${n ? `<button class="btn" data-act="informe-cuadro">Ver / imprimir el cuadro</button><button class="btn" data-act="excel">Exportar a Excel</button>` : ""}
       </div>
@@ -1494,6 +1497,7 @@
       const hacer = () => { actual.nombre = L.sugerirNombre(actual.criterio); tocado(actual); renderWizard(actual, 1); toast("Revisa el nombre: cambia «casos» por lo que cuentas (pacientes, historias…).", 4500); };
       if (lleno(actual.nombre)) confirmar("<p>Se sustituirá el nombre que has escrito.</p>", "Sustituir", hacer, { peligro: false }); else hacer();
     }
+    else if (a === "acr-traer") traerAcr();
     else if (a === "ind-lc" && actual) {
       const ind = actual;
       traerLC("Cargar archivo de Lectura Crítica", x => {
@@ -1567,6 +1571,39 @@
   let cerrados = [];
   window.addEventListener("beforeprint", () => { cerrados = $$("details").filter(d => !d.open); cerrados.forEach(d => { d.open = true; }); });
   window.addEventListener("afterprint", () => { cerrados.forEach(d => { d.open = false; }); cerrados = []; });
+
+  // ---------- «Cargar archivo de ACR · Ishikawa»: un indicador nuevo desde una acción de mejora con indicador ----------
+  // Lee el paquete «acrishikawa-analisis» v1 de este navegador o, si no hay, la copia .json de ACR · Ishikawa (#input-acr).
+  let acrCargados = null;
+  function traerAcr() {
+    if (acrCargados) { elegirAcr(acrCargados); return; }
+    $("#input-acr").click();
+  }
+  function elegirAcr(lista) {
+    const cortar = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s, FZ = { fuerte: "fuerte", intermedia: "intermedia", debil: "débil" };
+    const ops = []; lista.forEach((an, i) => an.acciones.forEach((x, j) => { if (x.indicador) ops.push({ i, j, an, x }); }));
+    if (!ops.length) { toast("Ninguna acción de esos análisis tiene indicador. Diséñalo aquí con «+ Nuevo indicador».", 5000); return; }
+    let grupo = "";
+    const html = ops.map((o, k) => { const cab = o.an.id !== grupo ? `<p class="field-sub" style="margin:10px 0 2px"><b>${esc(cortar(L.nombreAnalisisAcr(o.an), 90))}</b></p>` : ""; grupo = o.an.id;
+      return cab + `<label class="lc-op"><input type="radio" name="acr-sel" value="${k}"${k ? "" : " checked"} /><span><b>${esc(cortar(o.x.indicador.nombre, 120))}</b><small>${esc(cortar(o.x.que, 120))}${o.x.fuerza ? ` · acción ${FZ[o.x.fuerza]}` : ""}${o.x.indicador.esperado ? " · " + esc(o.x.indicador.esperado) : ""}</small></span></label>`; }).join("");
+    confirmar(`<p>Elige la acción cuyo indicador quieres traer. Se crea un indicador nuevo con su criterio, su numerador, su denominador y su estándar, que luego completas aquí.</p><div class="lc-lista">${html}</div>`, "Crear el indicador", () => {
+      const s = document.querySelector('input[name="acr-sel"]:checked'), o = s && ops[Number(s.value)]; if (!o) return;
+      const ind = L.indicadorDesdeAccion(o.an, o.x, genId(), hoy());
+      datosUsuario.indicadores.push(ind); guardar(true); location.hash = `#/indicador/${ind.id}/1`;
+      toast("Indicador creado desde la acción. Revisa el tipo, la población y las fuentes en los pasos 2 y 3.", 5000);
+    }, { titulo: "Cargar archivo de ACR · Ishikawa", peligro: false });
+  }
+  $("#input-acr").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      let r = null; try { r = L.analisisDeAcr(JSON.parse(fr.result)); } catch (er) { /* */ }
+      if (!r || r.error) { toast(r && r.error === "version" ? "Esa copia es de una versión de ACR · Ishikawa que esta app aún no sabe leer." : "Ese archivo no es una copia de la app ACR · Ishikawa.", 4500); return; }
+      if (!r.analisis.length) { toast("Esa copia no tiene análisis con acciones de mejora.", 4000); return; }
+      acrCargados = r.analisis; elegirAcr(acrCargados);
+    };
+    fr.readAsText(f);
+  });
 
   // ---------- «Cargar archivo de Lectura Crítica» ----------
   // traerLC(título de la ventana, función que recibe la lectura elegida). Pide la copia .json de Lectura Crítica (#input-lc).
