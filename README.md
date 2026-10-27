@@ -1,6 +1,6 @@
 # Indicadores
 
-Aplicación web: **https://herramientas-calidad.github.io/indicadores-calidad/** (versión 2026.13).
+Aplicación web: **https://herramientas-calidad.github.io/indicadores-calidad/** (versión 2026.14).
 
 Aplicación web (PWA) estática, sin dependencias, que funciona sin conexión y se puede instalar en el móvil, para crear, definir y comprobar indicadores de calidad y seguridad del paciente, paso a paso, como en el curso «Auditorías para la Mejora de la Seguridad del Paciente. Del Mapa de Riesgos a la Mejora Continua».
 
